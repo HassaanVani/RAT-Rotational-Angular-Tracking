@@ -1,0 +1,14 @@
+# RAT - Rotational/Angular Tracking
+# Core dependencies
+customtkinter>=5.2.0
+opencv-python>=4.8.0
+pandas>=2.0.0
+pillow>=10.0.0
+numpy>=1.24.0
+
+# Tracking engine (install separately with conda recommended)
+# deeplabcut
+# deeplabcut-live
+
+# Packaging (optional)
+pyinstaller>=6.0.0

@@ -65,7 +65,6 @@ class RATApp(ctk.CTk):
         self.image_offset_y = 0
         self.is_processing = False
         self.current_frame = None
-        
         self.tracker = Tracker()
         self.classifier = BehaviorClassifier()
         
@@ -78,6 +77,10 @@ class RATApp(ctk.CTk):
         self.preview_fps = 30.0
 
         self._build_ui()
+        
+        # Check if tracker loaded successfully
+        if self.tracker.error_message:
+            self.after(500, self._show_tracker_error)
 
     def _build_ui(self):
         self.grid_columnconfigure(1, weight=1)
@@ -717,6 +720,20 @@ class RATApp(ctk.CTk):
             self.load_first_frame()
         
         self.status_label.configure(text="Preview stopped")
+    
+    def _show_tracker_error(self):
+        """Show error dialog if tracker failed to load."""
+        from tkinter import messagebox
+        messagebox.showerror(
+            "Tracking Model Not Found",
+            f"{self.tracker.error_message}\n\n"
+            "The app will show random data instead of real tracking.\n\n"
+            "To fix this:\n"
+            "1. Close the app\n"
+            "2. Run the Installer (installer.py)\n"
+            "3. Click 'Reinstall' to set up dependencies"
+        )
+        self.status_label.configure(text="⚠ DEMO MODE — Tracking model not loaded")
 
 
 if __name__ == "__main__":

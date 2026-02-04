@@ -8,9 +8,6 @@ import sys
 import numpy as np
 
 # Body part indices for SuperAnimal-TopViewMouse
-# Full list: nose, left_ear, right_ear, left_ear_tip, right_ear_tip,
-# left_eye, right_eye, neck, mid_back, mouse_center, left_hip, right_hip,
-# left_forepaw, left_hindpaw, right_hindpaw, tail_base, tail_1-9, tail_tip
 PART_INDICES = {
     'nose': 0,
     'left_ear': 1,
@@ -30,6 +27,7 @@ class Tracker:
     def __init__(self):
         self.dlc_live = None
         self.is_initialized = False
+        self.error_message = None
         self._load_model()
     
     def _load_model(self):
@@ -37,7 +35,6 @@ class Tracker:
         try:
             from dlclive import DLCLive
             
-            # Load SuperAnimal-TopViewMouse (downloads automatically if needed)
             print("[Tracker] Loading SuperAnimal-TopViewMouse model...")
             self.dlc_live = DLCLive("superanimal_topviewmouse")
             
@@ -46,14 +43,16 @@ class Tracker:
             self.dlc_live.init_inference(dummy_frame)
             
             self.is_initialized = True
+            self.error_message = None
             print("[Tracker] Model loaded successfully!")
             
-        except ImportError:
-            print("[Tracker] DLC-Live not installed. Running in demo mode.")
-            print("[Tracker] To enable tracking: pip install deeplabcut deeplabcut-live")
+        except ImportError as e:
+            self.error_message = "DLC-Live is not installed. Please run the installer."
+            print(f"[Tracker] ERROR: {self.error_message}")
+            print("[Tracker] Install with: pip install deeplabcut deeplabcut-live")
         except Exception as e:
-            print(f"[Tracker] Could not load model: {e}")
-            print("[Tracker] Running in demo mode with simulated data.")
+            self.error_message = f"Failed to load tracking model: {e}"
+            print(f"[Tracker] ERROR: {self.error_message}")
     
     def get_keypoints(self, frame):
         """
@@ -69,10 +68,8 @@ class Tracker:
             return self._dummy_keypoints(frame)
         
         try:
-            # Get pose estimation
             pose = self.dlc_live.get_pose(frame)
             
-            # pose shape: (num_bodyparts, 3) = [x, y, confidence]
             keypoints = {}
             confidences = {}
             
@@ -82,7 +79,6 @@ class Tracker:
                 if conf >= CONFIDENCE_THRESHOLD:
                     keypoints[name] = (int(x), int(y))
                 else:
-                    # Low confidence fallback
                     keypoints[name] = (frame.shape[1] // 2, frame.shape[0] // 2)
                 
                 confidences[name] = float(conf)

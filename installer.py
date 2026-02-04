@@ -45,12 +45,16 @@ MINICONDA_URLS = {
 DEPENDENCIES = [
     "numpy<2.0",           # Pin numpy to 1.x for compatibility
     "pandas>=2.0,<2.2",    # Compatible with numpy 1.x
+    "tensorflow",          # Required by deeplabcut
     "deeplabcut",
     "deeplabcut-live", 
     "customtkinter",
     "opencv-python",
     "pillow",
 ]
+
+# Dependencies that MUST succeed for the app to work
+CRITICAL_DEPS = ["deeplabcut", "deeplabcut-live", "tensorflow"]
 
 
 class RATInstaller(ctk.CTk):
@@ -395,6 +399,8 @@ class RATInstaller(ctk.CTk):
         """Install Python dependencies."""
         self.after(0, lambda: self._log("Installing dependencies (this may take 5-10 minutes)..."))
         
+        failed_critical = []
+        
         try:
             # Get pip path in the environment
             if self.system == "Windows":
@@ -412,18 +418,21 @@ class RATInstaller(ctk.CTk):
                 )
                 
                 if result.returncode != 0:
-                    # Try with --user flag as fallback
-                    result = subprocess.run(
-                        [pip_path, "install", "--user", dep],
-                        capture_output=True,
-                        text=True,
-                        timeout=600
-                    )
-                    
-                    if result.returncode != 0:
-                        self.after(0, lambda d=dep: self._log(f"  Failed to install {d}", "warning"))
+                    dep_name = dep.split(">")[0].split("<")[0].split("=")[0]  # Extract package name
+                    if dep_name in CRITICAL_DEPS:
+                        self.after(0, lambda d=dep: self._log(f"  FAILED to install {d} (CRITICAL)", "error"))
+                        failed_critical.append(dep)
+                    else:
+                        self.after(0, lambda d=dep: self._log(f"  Warning: {d} may not have installed correctly", "warning"))
+                else:
+                    self.after(0, lambda d=dep: self._log(f"  {d} installed", "success"))
             
-            self.after(0, lambda: self._log("Dependencies installed", "success"))
+            if failed_critical:
+                self.after(0, lambda: self._log(f"Critical dependencies failed: {failed_critical}", "error"))
+                self.after(0, lambda: self._log("The app will not work correctly without these.", "error"))
+                return False
+            
+            self.after(0, lambda: self._log("All dependencies installed", "success"))
             return True
             
         except Exception as e:
@@ -442,25 +451,38 @@ class RATInstaller(ctk.CTk):
             else:
                 python_path = str(self.home / "miniconda3" / "envs" / "rat" / "bin" / "python")
             
-            # Run a script to download the model
+            # First verify dlclive is importable
+            verify_result = subprocess.run(
+                [python_path, "-c", "import dlclive; print('DLC-Live OK')"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if "DLC-Live OK" not in verify_result.stdout:
+                self.after(0, lambda: self._log("ERROR: DLC-Live is not installed correctly!", "error"))
+                self.after(0, lambda: self._log(f"  Details: {verify_result.stderr}", "error"))
+                return False
+            
+            # Download the model
             result = subprocess.run(
                 [python_path, "-c", 
-                 "from dlclive import DLCLive; DLCLive('superanimal_topviewmouse'); print('Model ready')"],
+                 "from dlclive import DLCLive; dlc = DLCLive('superanimal_topviewmouse'); print('Model ready')"],
                 capture_output=True,
                 text=True,
                 timeout=1200  # 20 minutes timeout
             )
             
-            if "Model ready" in result.stdout or result.returncode == 0:
-                self.after(0, lambda: self._log("Model downloaded", "success"))
+            if "Model ready" in result.stdout:
+                self.after(0, lambda: self._log("Model downloaded successfully", "success"))
                 return True
             else:
-                self.after(0, lambda: self._log("Model download may have failed, but continuing...", "warning"))
-                return True  # Continue anyway, model can be downloaded on first run
+                self.after(0, lambda: self._log(f"Model download failed: {result.stderr}", "error"))
+                return False
                 
         except Exception as e:
-            self.after(0, lambda: self._log(f"Model download skipped: {e}", "warning"))
-            return True  # Don't fail on model download
+            self.after(0, lambda: self._log(f"Model download failed: {e}", "error"))
+            return False
     
     def _finalize(self):
         """Final setup steps."""

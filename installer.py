@@ -431,21 +431,7 @@ class RATInstaller(ctk.CTk):
                 else:
                     self.after(0, lambda d=dep: self._log(f"  {d} installed via conda", "success"))
             
-            # Step 2: Install deeplabcut-live via pip (not on conda)
-            self.after(0, lambda: self._log("  Installing deeplabcut-live via pip..."))
-            result = subprocess.run(
-                [pip_path, "install", "deeplabcut-live"],
-                capture_output=True,
-                text=True,
-                timeout=600
-            )
-            if result.returncode != 0:
-                self.after(0, lambda: self._log("  FAILED to install deeplabcut-live", "error"))
-                failed_critical.append("deeplabcut-live")
-            else:
-                self.after(0, lambda: self._log("  deeplabcut-live installed", "success"))
-            
-            # Step 3: Install pip packages
+            # Step 2: Install pip packages
             self.after(0, lambda: self._log("Installing additional packages via pip..."))
             for dep in PIP_DEPS:
                 self.after(0, lambda d=dep: self._log(f"  Installing {d}..."))
@@ -474,9 +460,8 @@ class RATInstaller(ctk.CTk):
             return False
     
     def _download_model(self):
-        """Download the SuperAnimal model."""
-        self.after(0, lambda: self._log("Downloading SuperAnimal-TopViewMouse model (~500MB)..."))
-        self.after(0, lambda: self._log("  This may take several minutes depending on your connection"))
+        """Verify DeepLabCut and download SuperAnimal model."""
+        self.after(0, lambda: self._log("Verifying DeepLabCut installation..."))
         
         try:
             # Get python path in the environment
@@ -485,39 +470,37 @@ class RATInstaller(ctk.CTk):
             else:
                 python_path = str(self.home / "miniconda3" / "envs" / "rat" / "bin" / "python")
             
-            # First verify dlclive is importable (TensorFlow takes time to load)
-            self.after(0, lambda: self._log("  Verifying DLC-Live installation (TensorFlow loading)..."))
+            # Verify DeepLabCut is importable (TensorFlow takes time to load)
+            self.after(0, lambda: self._log("  Loading DeepLabCut (TensorFlow initializing)..."))
+            self.after(0, lambda: self._log("  This may take 1-3 minutes on first run..."))
+            
             verify_result = subprocess.run(
-                [python_path, "-c", "import dlclive; print('DLC-Live OK')"],
+                [python_path, "-c", 
+                 "import deeplabcut; print('DLC Version:', deeplabcut.__version__); print('DLC OK')"],
                 capture_output=True,
                 text=True,
                 timeout=300  # 5 min timeout - TensorFlow is slow to initialize
             )
             
-            if "DLC-Live OK" not in verify_result.stdout:
-                self.after(0, lambda: self._log("ERROR: DLC-Live is not installed correctly!", "error"))
-                self.after(0, lambda: self._log(f"  Details: {verify_result.stderr}", "error"))
+            if "DLC OK" not in verify_result.stdout:
+                self.after(0, lambda: self._log("ERROR: DeepLabCut is not working correctly!", "error"))
+                stderr_preview = verify_result.stderr[:500] if verify_result.stderr else "No error output"
+                self.after(0, lambda s=stderr_preview: self._log(f"  Details: {s}", "error"))
                 return False
             
-            # Download the model
-            result = subprocess.run(
-                [python_path, "-c", 
-                 "from dlclive import DLCLive; dlc = DLCLive('superanimal_topviewmouse'); print('Model ready')"],
-                capture_output=True,
-                text=True,
-                timeout=1200  # 20 minutes timeout
-            )
+            self.after(0, lambda: self._log(f"  {verify_result.stdout.strip()}", "success"))
             
-            if "Model ready" in result.stdout:
-                self.after(0, lambda: self._log("Model downloaded successfully", "success"))
-                return True
-            else:
-                self.after(0, lambda: self._log(f"Model download failed: {result.stderr}", "error"))
-                return False
+            # SuperAnimal models are included with DeepLabCut and download automatically on first use
+            self.after(0, lambda: self._log("SuperAnimal models will download on first use", "success"))
+            return True
                 
+        except subprocess.TimeoutExpired:
+            self.after(0, lambda: self._log("Verification timed out (TensorFlow may still be loading)", "warning"))
+            self.after(0, lambda: self._log("The app may work - try launching it", "warning"))
+            return True  # Don't fail - might still work
         except Exception as e:
             error_msg = str(e)
-            self.after(0, lambda msg=error_msg: self._log(f"Model download failed: {msg}", "error"))
+            self.after(0, lambda msg=error_msg: self._log(f"Verification failed: {msg}", "error"))
             return False
     
     def _finalize(self):

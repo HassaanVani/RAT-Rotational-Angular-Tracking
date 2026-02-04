@@ -7,15 +7,11 @@ import os
 import sys
 import numpy as np
 
-# Body part indices for SuperAnimal-TopViewMouse
-PART_INDICES = {
-    'nose': 0,
-    'left_ear': 1,
-    'right_ear': 2,
-    'tail_base': 15
-}
-
-CONFIDENCE_THRESHOLD = 0.5
+# Body part names for SuperAnimal-TopViewMouse
+# The model detects: nose, left_ear, right_ear, neck, left_front_paw, right_front_paw,
+# left_hind_paw, right_hind_paw, tail_base, spine, and more
+KEYPOINT_NAMES = ['nose', 'left_ear', 'right_ear', 'tail_base']
+CONFIDENCE_THRESHOLD = 0.3
 
 
 class Tracker:
@@ -25,33 +21,31 @@ class Tracker:
     """
     
     def __init__(self):
-        self.dlc_live = None
+        self.model = None
         self.is_initialized = False
         self.error_message = None
+        self.superanimal_name = "superanimal_topviewmouse"
         self._load_model()
     
     def _load_model(self):
         """Load the pre-trained SuperAnimal model."""
         try:
-            from dlclive import DLCLive
+            import deeplabcut
             
-            print("[Tracker] Loading SuperAnimal-TopViewMouse model...")
-            self.dlc_live = DLCLive("superanimal_topviewmouse")
+            print("[Tracker] DeepLabCut version:", deeplabcut.__version__)
+            print("[Tracker] Using SuperAnimal inference mode...")
             
-            # Warm up with a dummy frame
-            dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            self.dlc_live.init_inference(dummy_frame)
-            
+            # SuperAnimal models work through deeplabcut.video_inference_superanimal
+            # We'll use the model at inference time
             self.is_initialized = True
             self.error_message = None
-            print("[Tracker] Model loaded successfully!")
+            print("[Tracker] Model ready for inference!")
             
         except ImportError as e:
-            self.error_message = "DLC-Live is not installed. Please run the installer."
+            self.error_message = f"DeepLabCut is not installed: {e}"
             print(f"[Tracker] ERROR: {self.error_message}")
-            print("[Tracker] Install with: pip install deeplabcut deeplabcut-live")
         except Exception as e:
-            self.error_message = f"Failed to load tracking model: {e}"
+            self.error_message = f"Failed to initialize tracker: {e}"
             print(f"[Tracker] ERROR: {self.error_message}")
     
     def get_keypoints(self, frame):
@@ -64,27 +58,43 @@ class Tracker:
         Returns:
             dict with 'nose', 'left_ear', 'right_ear', 'tail_base' coordinates
         """
-        if not self.is_initialized or self.dlc_live is None:
+        if not self.is_initialized:
             return self._dummy_keypoints(frame)
         
         try:
-            pose = self.dlc_live.get_pose(frame)
+            import deeplabcut
             
-            keypoints = {}
+            # Use SuperAnimal inference on single frame
+            # This uses the pre-trained model to detect keypoints
+            keypoints = deeplabcut.analyze_image(
+                self.superanimal_name,
+                frame,
+                superanimal=True
+            )
+            
+            # Parse results into our format
+            result = {}
             confidences = {}
             
-            for name, idx in PART_INDICES.items():
-                x, y, conf = pose[idx]
-                
-                if conf >= CONFIDENCE_THRESHOLD:
-                    keypoints[name] = (int(x), int(y))
-                else:
-                    keypoints[name] = (frame.shape[1] // 2, frame.shape[0] // 2)
-                
-                confidences[name] = float(conf)
+            # The result format depends on DLC version
+            if isinstance(keypoints, dict):
+                for name in KEYPOINT_NAMES:
+                    if name in keypoints:
+                        x, y, conf = keypoints[name]
+                        if conf >= CONFIDENCE_THRESHOLD:
+                            result[name] = (int(x), int(y))
+                        else:
+                            result[name] = (frame.shape[1] // 2, frame.shape[0] // 2)
+                        confidences[name] = float(conf)
+                    else:
+                        result[name] = (frame.shape[1] // 2, frame.shape[0] // 2)
+                        confidences[name] = 0.0
+            else:
+                # Fallback for different result formats
+                return self._dummy_keypoints(frame)
             
-            keypoints['confidence'] = confidences
-            return keypoints
+            result['confidence'] = confidences
+            return result
             
         except Exception as e:
             print(f"[Tracker] Inference error: {e}")

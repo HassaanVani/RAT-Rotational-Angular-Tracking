@@ -236,9 +236,9 @@ class RATInstaller(ctk.CTk):
                 )
                 if "rat" in result.stdout:
                     self._log("RAT environment already exists", "success")
-                    self._set_status("Ready — RAT is already installed")
+                    self._set_status("Ready — RAT is already installed (click Reinstall to rebuild)")
                     self.btn_launch.configure(state="normal")
-                    self.btn_install.configure(text="Reinstall")
+                    self.btn_install.configure(state="normal", text="Reinstall")
                     self.progress_bar.set(1.0)
                     return
             except Exception:

@@ -563,6 +563,30 @@ class RATApp(ctk.CTk):
     
     def _start_preview(self):
         """Initialize and start preview playback."""
+        # Check if we need to analyze the video first
+        if self.tracker.keypoint_data is None or self.tracker.current_video_path != self.video_path:
+            self.status_label.configure(text="Analyzing video with AI... (first run takes longer)")
+            self.update()
+            
+            # Run analysis in a thread to not block UI
+            import threading
+            def analyze_and_start():
+                success = self.tracker.analyze_video(self.video_path)
+                if success:
+                    self.after(0, self._initialize_preview)
+                else:
+                    self.after(0, lambda: self.status_label.configure(
+                        text="⚠ Analysis failed — running in demo mode"
+                    ))
+                    self.after(0, self._initialize_preview)
+            
+            thread = threading.Thread(target=analyze_and_start, daemon=True)
+            thread.start()
+        else:
+            self._initialize_preview()
+    
+    def _initialize_preview(self):
+        """Initialize preview after video analysis."""
         self.preview_cap = cv2.VideoCapture(self.video_path)
         self.preview_total_frames = int(self.preview_cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.preview_fps = self.preview_cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -599,8 +623,8 @@ class RATApp(ctk.CTk):
     
     def _display_preview_frame(self, frame):
         """Display a frame with tracking overlays."""
-        # Get keypoints
-        keypoints = self.tracker.get_keypoints(frame)
+        # Get keypoints (use pre-computed data if available)
+        keypoints = self.tracker.get_keypoints(frame, frame_idx=self.preview_frame_idx)
         frame_height = frame.shape[0]
         behavior = self.classifier.classify_full(keypoints, frame_height)
         

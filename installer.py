@@ -43,13 +43,13 @@ MINICONDA_URLS = {
 }
 
 DEPENDENCIES = [
+    "numpy<2.0",           # Pin numpy to 1.x for compatibility
+    "pandas>=2.0,<2.2",    # Compatible with numpy 1.x
     "deeplabcut",
     "deeplabcut-live", 
     "customtkinter",
     "opencv-python",
-    "pandas",
     "pillow",
-    "numpy"
 ]
 
 

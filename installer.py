@@ -515,7 +515,8 @@ class RATInstaller(ctk.CTk):
                 return False
                 
         except Exception as e:
-            self.after(0, lambda: self._log(f"Model download failed: {e}", "error"))
+            error_msg = str(e)
+            self.after(0, lambda msg=error_msg: self._log(f"Model download failed: {msg}", "error"))
             return False
     
     def _finalize(self):

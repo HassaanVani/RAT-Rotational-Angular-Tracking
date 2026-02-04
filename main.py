@@ -68,6 +68,14 @@ class RATApp(ctk.CTk):
         
         self.tracker = Tracker()
         self.classifier = BehaviorClassifier()
+        
+        # Preview state
+        self.preview_running = False
+        self.preview_paused = False
+        self.preview_cap = None
+        self.preview_frame_idx = 0
+        self.preview_total_frames = 0
+        self.preview_fps = 30.0
 
         self._build_ui()
 
@@ -181,7 +189,67 @@ class RATApp(ctk.CTk):
         bottom_frame = ctk.CTkFrame(self.sidebar, fg_color=COLORS["bg_sidebar"])
         bottom_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=0)
         
-        ctk.CTkFrame(bottom_frame, height=1, fg_color=COLORS["border"]).pack(fill="x", padx=20, pady=(0, 16))
+        ctk.CTkFrame(bottom_frame, height=1, fg_color=COLORS["border"]).pack(fill="x", padx=20, pady=(0, 12))
+        
+        # DEBUG PREVIEW SECTION
+        self._section_label(bottom_frame, "DEBUG PREVIEW")
+        
+        preview_controls = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        preview_controls.pack(fill="x", padx=20, pady=(0, 8))
+        
+        self.btn_preview = ctk.CTkButton(
+            preview_controls,
+            text="▶ Preview",
+            width=100,
+            height=32,
+            fg_color=COLORS["bg_card"],
+            hover_color=COLORS["border"],
+            font=ctk.CTkFont(size=12),
+            command=self.toggle_preview
+        )
+        self.btn_preview.pack(side="left", padx=(0, 4))
+        
+        self.btn_step = ctk.CTkButton(
+            preview_controls,
+            text="⏭",
+            width=40,
+            height=32,
+            fg_color=COLORS["bg_card"],
+            hover_color=COLORS["border"],
+            font=ctk.CTkFont(size=14),
+            command=self.step_preview
+        )
+        self.btn_step.pack(side="left", padx=(0, 4))
+        
+        self.btn_stop_preview = ctk.CTkButton(
+            preview_controls,
+            text="⏹",
+            width=40,
+            height=32,
+            fg_color=COLORS["bg_card"],
+            hover_color=COLORS["border"],
+            font=ctk.CTkFont(size=14),
+            command=self.stop_preview
+        )
+        self.btn_stop_preview.pack(side="left")
+        
+        self.lbl_preview_frame = ctk.CTkLabel(
+            bottom_frame,
+            text="Frame: 0 / 0",
+            font=ctk.CTkFont(size=10),
+            text_color=COLORS["text_secondary"]
+        )
+        self.lbl_preview_frame.pack(anchor="w", padx=24, pady=(0, 8))
+        
+        self.lbl_preview_state = ctk.CTkLabel(
+            bottom_frame,
+            text="State: —",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=COLORS["accent"]
+        )
+        self.lbl_preview_state.pack(anchor="w", padx=24, pady=(0, 12))
+        
+        ctk.CTkFrame(bottom_frame, height=1, fg_color=COLORS["border"]).pack(fill="x", padx=20, pady=(0, 12))
         
         self.btn_start = ctk.CTkButton(
             bottom_frame,
@@ -471,6 +539,184 @@ class RATApp(ctk.CTk):
         self.progress_bar.set(1.0)
         self.btn_start.configure(state="normal", text="Start Processing")
         self.status_label.configure(text=f"Complete — Saved to {os.path.basename(save_path)}")
+    
+    # --- PREVIEW MODE ---
+    def toggle_preview(self):
+        """Start or pause preview playback."""
+        if not self.video_path:
+            self.status_label.configure(text="Load a video first")
+            return
+        
+        if not self.preview_running:
+            self._start_preview()
+        else:
+            self.preview_paused = not self.preview_paused
+            if self.preview_paused:
+                self.btn_preview.configure(text="▶ Resume")
+                self.status_label.configure(text="Preview paused")
+            else:
+                self.btn_preview.configure(text="⏸ Pause")
+                self.status_label.configure(text="Preview running...")
+    
+    def _start_preview(self):
+        """Initialize and start preview playback."""
+        self.preview_cap = cv2.VideoCapture(self.video_path)
+        self.preview_total_frames = int(self.preview_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.preview_fps = self.preview_cap.get(cv2.CAP_PROP_FPS) or 30.0
+        self.preview_frame_idx = 0
+        self.preview_running = True
+        self.preview_paused = False
+        
+        self.btn_preview.configure(text="⏸ Pause")
+        self.status_label.configure(text="Preview running...")
+        
+        self._preview_loop()
+    
+    def _preview_loop(self):
+        """Main preview loop - reads and displays frames with overlays."""
+        if not self.preview_running:
+            return
+        
+        if not self.preview_paused:
+            ret, frame = self.preview_cap.read()
+            
+            if not ret:
+                # End of video, loop back
+                self.preview_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                self.preview_frame_idx = 0
+                ret, frame = self.preview_cap.read()
+            
+            if ret:
+                self._display_preview_frame(frame)
+                self.preview_frame_idx += 1
+        
+        # Schedule next frame (targeting ~15fps for smooth UI)
+        delay = max(16, int(1000 / min(self.preview_fps, 30)))
+        self.after(delay, self._preview_loop)
+    
+    def _display_preview_frame(self, frame):
+        """Display a frame with tracking overlays."""
+        # Get keypoints
+        keypoints = self.tracker.get_keypoints(frame)
+        frame_height = frame.shape[0]
+        behavior = self.classifier.classify_full(keypoints, frame_height)
+        
+        # Convert to RGB for display
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Draw overlays on the frame
+        frame_rgb = self._draw_overlays(frame_rgb, keypoints, behavior)
+        
+        # Update labels
+        self.lbl_preview_frame.configure(
+            text=f"Frame: {self.preview_frame_idx} / {self.preview_total_frames}"
+        )
+        self.lbl_preview_state.configure(text=f"State: {behavior.attention}")
+        
+        # Display
+        self._display_frame(frame_rgb)
+    
+    def _draw_overlays(self, frame, keypoints, behavior):
+        """Draw keypoints, vectors, and zones on the frame."""
+        import cv2 as cv
+        
+        # Colors (BGR format for OpenCV)
+        KEYPOINT_COLORS = {
+            'nose': (0, 255, 0),       # Green
+            'left_ear': (0, 255, 255), # Yellow
+            'right_ear': (0, 255, 255),# Yellow
+            'tail_base': (0, 0, 255),  # Red
+        }
+        
+        # Draw zone overlays if arena is set
+        if self.arena_bounds:
+            x1, y1, x2, y2 = self.arena_bounds
+            arena_height = y2 - y1
+            zone_height = arena_height / 4
+            
+            zone_colors_bgr = [
+                (95, 95, 191),   # zone_top - muted red
+                (95, 143, 191),  # zone_adj_top - muted orange
+                (191, 143, 95),  # zone_adj_bottom - muted blue
+                (191, 95, 95),   # zone_bottom - muted blue
+            ]
+            
+            overlay = frame.copy()
+            for i, color in enumerate(zone_colors_bgr):
+                zy1 = int(y1 + i * zone_height)
+                zy2 = int(y1 + (i + 1) * zone_height)
+                cv.rectangle(overlay, (x1, zy1), (x2, zy2), color, -1)
+            
+            # Blend with original (30% opacity)
+            frame = cv.addWeighted(overlay, 0.3, frame, 0.7, 0)
+            
+            # Draw zone outlines
+            for i in range(5):
+                zy = int(y1 + i * zone_height)
+                cv.line(frame, (x1, zy), (x2, zy), (200, 200, 200), 1)
+            cv.rectangle(frame, (x1, y1), (x2, y2), (200, 200, 200), 2)
+        
+        # Draw keypoints
+        for name, color in KEYPOINT_COLORS.items():
+            if name in keypoints:
+                x, y = keypoints[name]
+                cv.circle(frame, (x, y), 6, color, -1)
+                cv.circle(frame, (x, y), 8, (255, 255, 255), 1)
+        
+        # Draw body vector (nose to tail)
+        if 'nose' in keypoints and 'tail_base' in keypoints:
+            nose = keypoints['nose']
+            tail = keypoints['tail_base']
+            cv.arrowedLine(frame, tail, nose, (255, 255, 255), 2, tipLength=0.2)
+        
+        # Draw state label
+        label = f"{behavior.attention}"
+        label_size = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        cv.rectangle(frame, (10, 10), (20 + label_size[0], 35 + label_size[1]), (0, 0, 0), -1)
+        cv.putText(frame, label, (15, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        return frame
+    
+    def step_preview(self):
+        """Step forward one frame in preview."""
+        if not self.video_path:
+            self.status_label.configure(text="Load a video first")
+            return
+        
+        if not self.preview_cap or not self.preview_cap.isOpened():
+            self.preview_cap = cv2.VideoCapture(self.video_path)
+            self.preview_total_frames = int(self.preview_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.preview_fps = self.preview_cap.get(cv2.CAP_PROP_FPS) or 30.0
+            self.preview_frame_idx = 0
+        
+        ret, frame = self.preview_cap.read()
+        if ret:
+            self._display_preview_frame(frame)
+            self.preview_frame_idx += 1
+        else:
+            # Reset to beginning
+            self.preview_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.preview_frame_idx = 0
+        
+        self.status_label.configure(text=f"Frame {self.preview_frame_idx}")
+    
+    def stop_preview(self):
+        """Stop preview and show first frame."""
+        self.preview_running = False
+        self.preview_paused = False
+        
+        if self.preview_cap:
+            self.preview_cap.release()
+            self.preview_cap = None
+        
+        self.btn_preview.configure(text="▶ Preview")
+        self.lbl_preview_frame.configure(text="Frame: 0 / 0")
+        self.lbl_preview_state.configure(text="State: —")
+        
+        if self.video_path:
+            self.load_first_frame()
+        
+        self.status_label.configure(text="Preview stopped")
 
 
 if __name__ == "__main__":

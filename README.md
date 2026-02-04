@@ -7,92 +7,104 @@
 ## Features
 
 - **No Training Required**: Uses the pre-trained `SuperAnimal-TopViewMouse` model (trained on 5,000+ lab mice).
-- **Interactive Calibration**: Simply draw "Zone A" (Top) and "Zone B" (Bottom) on the video frame.
+- **Interactive Calibration**: Simply draw the experimental arena on the video frame.
+- **4-Zone Detection**: Automatically divides arena into Top Stimulus, Adjacent to Top, Adjacent to Bottom, and Bottom Stimulus zones.
 - **Automated Scoring**:
-  - **Sniffing**: Nose inside zone + mouse stationary.
-  - **Head Direction**: Tracks if mouse is facing Top or Bottom half.
+  - **Sniffing**: Nose near zone edge + mouse stationary.
+  - **Head Direction**: Tracks if mouse is facing Top, Bottom, or Middle.
   - **Grooming**: Detects when mouse curls up (nose close to tail).
+- **Debug Preview**: View real-time tracking overlays before processing.
 - **Data Export**: Outputs timestamped `.csv` files ready for statistical analysis.
-
-## Quick Start (Mac/Linux)
-
-### 1. Installation (One-Time)
-Double-click the `install_rat.sh` script.
-- It installs the necessary environment (Miniconda, Python 3.10).
-- It downloads the tracking model (~500MB).
-- *This takes about 5-10 minutes.*
-
-### 2. Running RAT
-Double-click the `run_rat.command` file.
-- The interface will open immediately.
 
 ---
 
-## Quick Start (Windows)
+## Installation
 
-### Option A: Standalone Executable (Recommended)
-Download `RAT.exe` from the [Releases](../../releases) page.
-- No installation required — just double-click to run.
-- Works on any Windows 10/11 PC.
+### Option 1: GUI Installer (Recommended)
 
-### Option B: From Source
+Double-click `installer.py` — a visual installer will guide you through:
+1. Installing Miniconda (if needed)
+2. Creating the RAT environment
+3. Downloading the tracking model
 
-#### 1. Install Python (One-Time)
-Download Python 3.10+ from [python.org](https://www.python.org/downloads/)
-> ⚠️ **IMPORTANT**: Check **"Add Python to PATH"** during installation!
+**Requirements**: Python 3.8+ must be installed to run the installer.
 
-#### 2. Install RAT (One-Time)
-Double-click `install_rat.bat`
-- This creates an isolated environment and downloads dependencies.
-- Takes ~5 minutes on first run.
+### Option 2: Manual Installation
 
-#### 3. Run RAT
-Double-click `run_rat.bat`
-- The interface opens automatically.
-- If not installed, it will install first.
+```bash
+# Create environment
+conda create -n rat python=3.10 -y
+conda activate rat
+
+# Install dependencies
+pip install deeplabcut deeplabcut-live customtkinter opencv-python pandas pillow numpy
+
+# Download model (happens automatically on first run)
+python -c "from dlclive import DLCLive; DLCLive('superanimal_topviewmouse')"
+```
+
+---
+
+## Running RAT
+
+```bash
+conda activate rat
+python main.py
+```
+
+Or after using the GUI installer, click **Launch RAT**.
 
 ---
 
 ## Usage Guide
 
-1. **Load Video**: Click **Select Video** and choose your `.mp4`, `.avi`, or `.mts` file.
-2. **Set Output**: Choose where to save the results.
-3. **Draw Arena**: Click **Draw Arena** and draw a box around the experimental area.
-   - The arena will automatically divide into 4 zones:
-     - **Top Stimulus** (top 25%)
-     - **Adj to Top** (25-50%)
-     - **Adj to Bottom** (50-75%)
-     - **Bottom Stimulus** (bottom 25%)
-4. **Start Processing**: Click **Start Processing**.
-   - The system tracks the mouse frame-by-frame.
-   - Status bar shows progress.
+### 1. Load Video
+Click **Select Video** and choose your `.mp4`, `.avi`, or `.mts` file.
+
+### 2. Set Output
+Click **Set Output Folder** to choose where results will be saved.
+
+### 3. Calibrate Arena
+Click **Draw Arena** and drag a rectangle around the experimental arena. The system automatically divides it into 4 equal zones.
+
+### 4. Debug Preview (Optional)
+Use the **Preview** controls to verify tracking:
+- **▶ Preview**: Play video with tracking overlays
+- **⏭**: Step forward one frame
+- **⏹**: Stop preview
+
+The preview shows:
+- Green dot = Nose
+- Yellow dots = Ears
+- Red dot = Tail base
+- White arrow = Body direction
+- Colored zones = Detection regions
+- State label = Current behavior classification
+
+### 5. Process
+Click **Start Processing** to analyze the full video. Results are saved as CSV.
+
+---
 
 ## Output Data
 
-The generated `results.csv` contains two behavior tracks:
+The generated `video_name_results.csv` contains:
 
 | Column | Description |
 |--------|-------------|
 | `Frame` | Video frame number |
 | `Time_s` | Timestamp in seconds |
-| `Location` | Zone where head is located: `Top Stimulus`, `Adj to Top`, `Adj to Bottom`, `Bottom Stimulus` |
-| `Attention` | Behavior state: `Sniffing Top`, `Sniffing Bottom`, `Head Top`, `Head Middle/Nothing`, `Head Bottom`, `Grooming` |
-| `Nose_X`, `Nose_Y` | Raw coordinates for custom analysis |
-| `Head_Angle` | Orientation angle in degrees |
+| `Location` | Zone where mouse is located |
+| `Attention` | Behavioral state (Sniffing Top, Head Bottom, etc.) |
+| `Nose_X`, `Nose_Y` | Raw nose coordinates |
+| `Head_Angle` | Body orientation angle |
 
 ---
 
 ## Developer Info
 
-- **Architecture**: See `VISION.md` for a technical overview.
-- **Vision Engine**: DeepLabCut-Live (`tracker.py`).
-- **Logic Core**: Geometric rules engine (`classifier.py`).
-- **GUI**: CustomTkinter (`main.py`).
-
-### Running from Source
-```bash
-conda create -n rat python=3.10
-conda activate rat
-pip install deeplabcut deeplabcut-live customtkinter opencv-python pandas pillow numpy
-python main.py
-```
+- **Architecture**: See `VISION.md` for technical details.
+- **Vision Engine**: `tracker.py` — DeepLabCut-Live wrapper
+- **Logic Core**: `classifier.py` — Behavioral state machine
+- **GUI**: `main.py` — CustomTkinter interface
+- **Installer**: `installer.py` — Cross-platform setup wizard

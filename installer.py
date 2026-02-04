@@ -42,19 +42,23 @@ MINICONDA_URLS = {
     }
 }
 
-DEPENDENCIES = [
-    "numpy<2.0",           # Pin numpy to 1.x for compatibility
-    "pandas>=2.0,<2.2",    # Compatible with numpy 1.x
-    "tensorflow",          # Required by deeplabcut
-    "deeplabcut",
-    "deeplabcut-live", 
+# Pip dependencies (simple packages)
+PIP_DEPS = [
+    "numpy<2.0",
+    "pandas>=2.0,<2.2",
     "customtkinter",
     "opencv-python",
     "pillow",
 ]
 
+# Conda dependencies (complex packages with C dependencies)
+CONDA_DEPS = [
+    "tensorflow",
+    "deeplabcut", 
+]
+
 # Dependencies that MUST succeed for the app to work
-CRITICAL_DEPS = ["deeplabcut", "deeplabcut-live", "tensorflow"]
+CRITICAL_DEPS = ["deeplabcut", "tensorflow"]
 
 
 class RATInstaller(ctk.CTk):
@@ -396,34 +400,64 @@ class RATInstaller(ctk.CTk):
             return False
     
     def _install_dependencies(self):
-        """Install Python dependencies."""
-        self.after(0, lambda: self._log("Installing dependencies (this may take 5-10 minutes)..."))
+        """Install Python dependencies using conda and pip."""
+        self.after(0, lambda: self._log("Installing dependencies (this may take 10-15 minutes)..."))
         
         failed_critical = []
         
         try:
-            # Get pip path in the environment
+            # Get paths
             if self.system == "Windows":
                 pip_path = str(self.home / "miniconda3" / "envs" / "rat" / "Scripts" / "pip.exe")
             else:
                 pip_path = str(self.home / "miniconda3" / "envs" / "rat" / "bin" / "pip")
             
-            for dep in DEPENDENCIES:
+            # Step 1: Install conda packages (deeplabcut, tensorflow)
+            self.after(0, lambda: self._log("Installing DeepLabCut via conda (recommended method)..."))
+            
+            for dep in CONDA_DEPS:
+                self.after(0, lambda d=dep: self._log(f"  Installing {d} via conda..."))
+                result = subprocess.run(
+                    [self.conda_path, "install", "-n", "rat", "-c", "conda-forge", dep, "-y"],
+                    capture_output=True,
+                    text=True,
+                    timeout=900  # 15 min timeout for large packages
+                )
+                
+                if result.returncode != 0:
+                    self.after(0, lambda d=dep: self._log(f"  FAILED to install {d} via conda", "error"))
+                    self.after(0, lambda: self._log(f"  Error: {result.stderr[:200]}", "error"))
+                    failed_critical.append(dep)
+                else:
+                    self.after(0, lambda d=dep: self._log(f"  {d} installed via conda", "success"))
+            
+            # Step 2: Install deeplabcut-live via pip (not on conda)
+            self.after(0, lambda: self._log("  Installing deeplabcut-live via pip..."))
+            result = subprocess.run(
+                [pip_path, "install", "deeplabcut-live"],
+                capture_output=True,
+                text=True,
+                timeout=600
+            )
+            if result.returncode != 0:
+                self.after(0, lambda: self._log("  FAILED to install deeplabcut-live", "error"))
+                failed_critical.append("deeplabcut-live")
+            else:
+                self.after(0, lambda: self._log("  deeplabcut-live installed", "success"))
+            
+            # Step 3: Install pip packages
+            self.after(0, lambda: self._log("Installing additional packages via pip..."))
+            for dep in PIP_DEPS:
                 self.after(0, lambda d=dep: self._log(f"  Installing {d}..."))
                 result = subprocess.run(
                     [pip_path, "install", dep],
                     capture_output=True,
                     text=True,
-                    timeout=600
+                    timeout=300
                 )
                 
                 if result.returncode != 0:
-                    dep_name = dep.split(">")[0].split("<")[0].split("=")[0]  # Extract package name
-                    if dep_name in CRITICAL_DEPS:
-                        self.after(0, lambda d=dep: self._log(f"  FAILED to install {d} (CRITICAL)", "error"))
-                        failed_critical.append(dep)
-                    else:
-                        self.after(0, lambda d=dep: self._log(f"  Warning: {d} may not have installed correctly", "warning"))
+                    self.after(0, lambda d=dep: self._log(f"  Warning: {d} may not have installed correctly", "warning"))
                 else:
                     self.after(0, lambda d=dep: self._log(f"  {d} installed", "success"))
             

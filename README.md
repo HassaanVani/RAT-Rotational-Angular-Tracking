@@ -1,46 +1,66 @@
-# RAT (Rotational/Angular Tracking)
+# RAT — Rotational/Angular Tracking
 
-**RAT** is an automated behavioral scoring tool for lab mice, designed to replace manual tracking in research. It uses computer vision to track mouse keypoints and classify behaviors like "Sniffing" and "Head Direction" relative to stimulus zones.
+**RAT** is an automated behavioral scoring tool for lab mice, designed to replace hours of manual tracking. It uses **DeepLabCut's pre-trained SuperAnimal models** to automatically track mouse keypoints (nose, ears, tail) and classify behaviors like "Sniffing" vs. "Roaming" relative to stimulus zones.
+
+![RAT Logo](RAT_LOGO.jpg)
 
 ## Features
-- **Zone Calibration**: Interactively draw Top (Red) and Bottom (Blue) stimulus zones on the first frame of the video.
-- **Automated Tracking**: Tracks Nose, Ears, and Tail Base (Currently simulated for testing).
-- **Behavior Classification**: Logic to detect Sniffing vs. Roaming.
-- **Data Export**: Generates `results.csv` compatible with analysis workflows.
 
-## Installation (For Developers)
+- **No Training Required**: Uses the pre-trained `SuperAnimal-TopViewMouse` model (trained on 5,000+ lab mice).
+- **Interactive Calibration**: Simply draw "Zone A" (Top) and "Zone B" (Bottom) on the video frame.
+- **Automated Scoring**:
+  - **Sniffing**: Nose inside zone + mouse stationary.
+  - **Head Direction**: Tracks if mouse is facing Top or Bottom half.
+  - **Grooming**: Detects when mouse curls up (nose close to tail).
+- **Data Export**: Outputs timestamped `.csv` files ready for statistical analysis.
 
-1. **Clone the repository.**
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-   *Requires Python 3.9+*
+## Quick Start (Mac/Linux)
 
-## Running the App
+### 1. Installation (One-Time)
+Double-click the `install_rat.sh` script.
+- It installs the necessary environment (Miniconda, Python 3.10).
+- It downloads the tracking model (~500MB).
+- *This takes about 5-10 minutes.*
 
-To run the application directly from source:
-```bash
-python main.py
-```
+### 2. Running RAT
+Double-click the `run_rat.command` file.
+- The interface will open immediately.
 
-## Building the Standalone App
-
-To create a double-click application (Mac `.app` or Windows `.exe`) for researchers:
-
-1. **Run the build script:**
-   ```bash
-   ./build_app.sh
-   ```
-2. **Find the app:**
-   The output will be in the `dist/` folder.
-   - On Mac, you will see `RAT_Tracker` (executable).
+---
 
 ## Usage Guide
-1. **Load Video**: Click "Load Single Video" and select your recording.
-2. **Set Zones**:
-   - Click "Draw Zone A (Red)" -> Drag a box on the canvas -> Release.
-   - Click "Draw Zone B (Blue)" -> Drag a box on the canvas -> Release.
-3. **Set Output**: Choose where to save the CSV.
-4. **Start Processing**: Click "Start Processing".
-5. **Review**: Check the output folder for `results.csv`.
+
+1. **Load Video**: Click **Select Video** and choose your `.mp4`, `.avi`, or `.mts` file.
+2. **Set Output**: Choose where to save the results.
+3. **Calibrate Zones**:
+   - Click **Zone A** (Red) → Draw a box around the Top Stimulus.
+   - Click **Zone B** (Blue) → Draw a box around the Bottom Stimulus.
+4. **Start Processing**: Click **Start Processing**.
+   - The system tracks the mouse frame-by-frame.
+   - Status bar shows progress.
+
+## Output Data
+
+The generated `results.csv` contains:
+- `Frame`: Video frame number.
+- `Time_s`: Timestamp in seconds.
+- `Location`: "Top" or "Bottom" (based on screen half).
+- `Behavior`: Specific state (e.g., `Sniffing Top`, `Grooming`, `Head Bottom`).
+- `Nose_X`, `Nose_Y`: Raw coordinates for custom analysis.
+
+---
+
+## Developer Info
+
+- **Architecture**: See `VISION.md` for a technical overview.
+- **Vision Engine**: DeepLabCut-Live (`tracker.py`).
+- **Logic Core**: Geometric rules engine (`classifier.py`).
+- **GUI**: CustomTkinter (`main.py`).
+
+### Running from Source
+```bash
+conda create -n rat python=3.10
+conda activate rat
+pip install deeplabcut deeplabcut-live customtkinter opencv-python pandas pillow numpy
+python main.py
+```

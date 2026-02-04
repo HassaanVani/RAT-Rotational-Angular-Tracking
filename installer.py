@@ -59,8 +59,8 @@ class RATInstaller(ctk.CTk):
         
         self.configure(fg_color=COLORS["bg_dark"])
         self.title("RAT — Installer")
-        self.geometry("600x500")
-        self.resizable(False, False)
+        self.geometry("600x650")
+        self.resizable(True, True)
         
         self.system = platform.system()
         self.arch = platform.machine()

@@ -526,7 +526,6 @@ class RATInstaller(ctk.CTk):
     def launch_rat(self):
         """Launch the main RAT application."""
         try:
-            # Get the directory where this installer is located
             script_dir = Path(__file__).parent
             main_py = script_dir / "main.py"
             
@@ -535,11 +534,36 @@ class RATInstaller(ctk.CTk):
             else:
                 python_path = str(self.home / "miniconda3" / "envs" / "rat" / "bin" / "python")
             
-            # Launch main.py
-            subprocess.Popen([python_path, str(main_py)], cwd=str(script_dir))
+            self._log(f"Launching RAT from: {main_py}")
+            self._log(f"Using Python: {python_path}")
             
-            # Close installer
-            self.after(1000, self.destroy)
+            # Check if python exists
+            if not Path(python_path).exists():
+                self._log(f"ERROR: Python not found at {python_path}", "error")
+                self._log("Try running 'Reinstall' first", "error")
+                return
+            
+            # Check if main.py exists
+            if not main_py.exists():
+                self._log(f"ERROR: main.py not found at {main_py}", "error")
+                return
+            
+            # Launch main.py with visible terminal output
+            if self.system == "Darwin":  # Mac
+                # Use osascript to open in Terminal so errors are visible
+                cmd = f'''
+                tell application "Terminal"
+                    activate
+                    do script "cd '{script_dir}' && source ~/miniconda3/bin/activate rat && python main.py"
+                end tell
+                '''
+                subprocess.Popen(["osascript", "-e", cmd])
+            else:
+                # Windows/Linux - launch directly
+                subprocess.Popen([python_path, str(main_py)], cwd=str(script_dir))
+            
+            self._log("RAT launched in Terminal window", "success")
+            self._set_status("RAT launched — check Terminal for output")
             
         except Exception as e:
             self._log(f"Error launching RAT: {e}", "error")

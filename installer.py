@@ -485,12 +485,13 @@ class RATInstaller(ctk.CTk):
             else:
                 python_path = str(self.home / "miniconda3" / "envs" / "rat" / "bin" / "python")
             
-            # First verify dlclive is importable
+            # First verify dlclive is importable (TensorFlow takes time to load)
+            self.after(0, lambda: self._log("  Verifying DLC-Live installation (TensorFlow loading)..."))
             verify_result = subprocess.run(
                 [python_path, "-c", "import dlclive; print('DLC-Live OK')"],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=300  # 5 min timeout - TensorFlow is slow to initialize
             )
             
             if "DLC-Live OK" not in verify_result.stdout:

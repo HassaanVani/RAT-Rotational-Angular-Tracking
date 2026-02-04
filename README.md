@@ -28,25 +28,57 @@ Double-click the `run_rat.command` file.
 
 ---
 
+## Quick Start (Windows)
+
+### Option A: Standalone Executable (Recommended)
+Download `RAT.exe` from the [Releases](../../releases) page.
+- No installation required — just double-click to run.
+- Works on any Windows 10/11 PC.
+
+### Option B: From Source
+
+#### 1. Install Python (One-Time)
+Download Python 3.10+ from [python.org](https://www.python.org/downloads/)
+> ⚠️ **IMPORTANT**: Check **"Add Python to PATH"** during installation!
+
+#### 2. Install RAT (One-Time)
+Double-click `install_rat.bat`
+- This creates an isolated environment and downloads dependencies.
+- Takes ~5 minutes on first run.
+
+#### 3. Run RAT
+Double-click `run_rat.bat`
+- The interface opens automatically.
+- If not installed, it will install first.
+
+---
+
 ## Usage Guide
 
 1. **Load Video**: Click **Select Video** and choose your `.mp4`, `.avi`, or `.mts` file.
 2. **Set Output**: Choose where to save the results.
-3. **Calibrate Zones**:
-   - Click **Zone A** (Red) → Draw a box around the Top Stimulus.
-   - Click **Zone B** (Blue) → Draw a box around the Bottom Stimulus.
+3. **Draw Arena**: Click **Draw Arena** and draw a box around the experimental area.
+   - The arena will automatically divide into 4 zones:
+     - **Top Stimulus** (top 25%)
+     - **Adj to Top** (25-50%)
+     - **Adj to Bottom** (50-75%)
+     - **Bottom Stimulus** (bottom 25%)
 4. **Start Processing**: Click **Start Processing**.
    - The system tracks the mouse frame-by-frame.
    - Status bar shows progress.
 
 ## Output Data
 
-The generated `results.csv` contains:
-- `Frame`: Video frame number.
-- `Time_s`: Timestamp in seconds.
-- `Location`: "Top" or "Bottom" (based on screen half).
-- `Behavior`: Specific state (e.g., `Sniffing Top`, `Grooming`, `Head Bottom`).
-- `Nose_X`, `Nose_Y`: Raw coordinates for custom analysis.
+The generated `results.csv` contains two behavior tracks:
+
+| Column | Description |
+|--------|-------------|
+| `Frame` | Video frame number |
+| `Time_s` | Timestamp in seconds |
+| `Location` | Zone where head is located: `Top Stimulus`, `Adj to Top`, `Adj to Bottom`, `Bottom Stimulus` |
+| `Attention` | Behavior state: `Sniffing Top`, `Sniffing Bottom`, `Head Top`, `Head Middle/Nothing`, `Head Bottom`, `Grooming` |
+| `Nose_X`, `Nose_Y` | Raw coordinates for custom analysis |
+| `Head_Angle` | Orientation angle in degrees |
 
 ---
 

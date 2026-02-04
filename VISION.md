@@ -85,13 +85,23 @@ Video Frame (BGR)
 
 ## Behavioral States
 
+### Location Track (mutually exclusive)
 | State | Detection Logic |
 |-------|-----------------|
-| `Sniffing Top` | Nose inside Zone A AND velocity < threshold |
-| `Sniffing Bottom` | Nose inside Zone B AND velocity < threshold |
-| `Head Top` | Nose in upper 50% of frame (not in Zone A) |
-| `Head Bottom` | Nose in lower 50% of frame (not in Zone B) |
-| `Grooming` | Nose-to-tail distance < threshold AND velocity low |
+| `Top Stimulus` | Head in top 25% of arena |
+| `Adj to Top` | Head in 25-50% of arena |
+| `Adj to Bottom` | Head in 50-75% of arena |
+| `Bottom Stimulus` | Head in bottom 25% of arena |
+
+### Attention Track (mutually exclusive)
+| State | Detection Logic |
+|-------|-----------------|
+| `Sniffing Top` | In Top Stimulus zone + near wall + stationary |
+| `Sniffing Bottom` | In Bottom Stimulus zone + near wall + stationary |
+| `Grooming` | Nose close to body + low velocity |
+| `Head Top` | Facing upward (angle -45° to 45°) |
+| `Head Middle/Nothing` | Facing walls/corners/sideways |
+| `Head Bottom` | Facing downward (angle >135° or <-135°) |
 
 ---
 
@@ -122,7 +132,7 @@ Video Frame (BGR)
 - [ ] Batch processing of entire folders
 - [ ] Real-time preview overlay during processing
 - [ ] Solomon Coder `.arch` file export (if format is documented)
-- [ ] Windows installer scripts
+- [x] Windows installer scripts
 - [ ] GPU acceleration toggle in UI
 - [ ] Custom keypoint selection for different experiments
 

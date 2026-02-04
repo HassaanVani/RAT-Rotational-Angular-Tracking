@@ -342,6 +342,26 @@ class RATInstaller(ctk.CTk):
     
     def _create_environment(self):
         """Create the RAT conda environment."""
+        self.after(0, lambda: self._log("Accepting conda Terms of Service..."))
+        
+        try:
+            # Accept ToS for default channels (new Anaconda requirement)
+            subprocess.run(
+                [self.conda_path, "tos", "accept", "--override-channels", 
+                 "--channel", "https://repo.anaconda.com/pkgs/main"],
+                capture_output=True,
+                timeout=30
+            )
+            subprocess.run(
+                [self.conda_path, "tos", "accept", "--override-channels", 
+                 "--channel", "https://repo.anaconda.com/pkgs/r"],
+                capture_output=True,
+                timeout=30
+            )
+            self.after(0, lambda: self._log("ToS accepted", "success"))
+        except Exception as e:
+            self.after(0, lambda: self._log(f"ToS acceptance skipped: {e}", "warning"))
+        
         self.after(0, lambda: self._log("Creating conda environment 'rat' with Python 3.10..."))
         
         try:
